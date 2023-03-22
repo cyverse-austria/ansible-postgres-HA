@@ -1,0 +1,8 @@
+---
+
+- name: required packages
+  ansible.builtin.apt:
+    state: present
+    update_cache: true
+    name:
+      - keepalived

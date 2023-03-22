@@ -1,0 +1,27 @@
+---
+# tasks file for keepalive
+
+- name: install needed packages
+  ansible.builtin.include_tasks: packages.yml
+
+- name: set virIP
+  ansible.builtin.set_fact:
+    keepalive__virtip: "{{ keepalive_virtIP }}/{{ ansible_default_ipv4.netmask }}"
+
+- name: create check_script
+  ansible.builtin.copy:
+    src: etc/keepalived/check_master.sh
+    dest: /etc/keepalived/check_master.sh
+    owner: "{{ postgresql_admin_user | default('postgres') }}"
+    group: "{{ postgresql_admin_user | default('postgres') }}"
+    mode: 0750
+
+- name: create keepalive.config file
+  ansible.builtin.template:
+    src: etc/keepalived/keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: 0600
+  notify:
+    - restart keepalived

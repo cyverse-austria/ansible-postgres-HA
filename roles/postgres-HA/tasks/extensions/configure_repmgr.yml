@@ -1,0 +1,181 @@
+---
+- name: Repmgr | Update configuration (repmgr.conf)
+  ansible.builtin.template:
+    src: "repmgr.conf-{{ repmgr_version }}.j2"
+    dest: "{{ postgresql_conf_directory }}/repmgr.conf"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0640
+  notify: Reload repmgr
+
+- name: Repmgr | Upload logrotate configuration
+  ansible.builtin.template:
+    src: repmgr_logroate.j2
+    dest: /etc/logrotate.d/repmgr
+    mode: 0640
+
+- name: Repmgr | Create repmgr.conf symlink for shorter commands # see: https://repmgr.org/docs/5.0/configuration-file.html
+  ansible.builtin.file:
+    src: "{{ postgresql_conf_directory }}/repmgr.conf"
+    dest: /etc/repmgr.conf 
+    state: link
+    mode: 0640
+
+- name: Repmgr | Ensure systemd drop-in directory exists
+  ansible.builtin.file:
+    path: "/etc/systemd/system/repmgr{{ postgresql_version }}.service.d/"
+    state: directory
+    mode: 0755
+
+- name: Repmgr | Update drop-in
+  ansible.builtin.template:
+    src: "repmgr.custom.conf.j2"
+    dest: "/etc/systemd/system/repmgr{{ postgresql_version }}.service.d/custom.conf"
+    mode: 0640
+
+- name: Repmgr | Allow passwordless restarts with postgres user
+  ansible.builtin.template:
+    src: "sudoers.postgresql.j2"
+    dest: "/etc/sudoers.d/postgresql"
+    mode: 0640
+
+- name: Repmgr | Update .pgpass for postgres user
+  ansible.builtin.template:
+    src: "pgpass.j2"
+    dest: "{{ repmgr_passfile }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0600
+    trim_blocks: no
+
+- name: Repmgr | Ensure ssh keys destination folder exists
+  ansible.builtin.file: 
+    path: "{{ repmgr_base_key_path }}"
+    state: directory
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0700
+
+- name: Repmgr | Generate an SSH keypair locally
+  community.crypto.openssh_keypair:
+    path: "{{ lookup('config', 'DEFAULT_LOCAL_TMP') | dirname }}/postgres_id_rsa"
+    backend: cryptography
+    regenerate: partial_idempotence
+    size: "{{ repmgr_ssh_key_bits }}"
+    type: "{{ repmgr_ssh_key_type }}"
+    force: "{{ repmgr_ssh_force_renewal }}"
+    mode: 0644
+  delegate_to: 127.0.0.1
+  become: no
+
+- name: Repmgr | Fetch pubkey content
+  ansible.builtin.set_fact:
+    pubkey_content: "
+      {{ lookup(
+        'file',
+        lookup('config','DEFAULT_LOCAL_TMP') | dirname + '/postgres_id_rsa.pub'
+      ) }}"
+  become: no
+  tags: ['skip_ansible_lint']
+
+- name: Repmgr | Update authorized_keys on all nodes
+  ansible.posix.authorized_key:
+    user: "{{ postgresql_service_user }}"
+    key: "{{ pubkey_content }}"
+    state: present
+
+- name: Repmgr | Upload private key on all nodes
+  ansible.builtin.copy:
+    src: "{{ lookup('config', 'DEFAULT_LOCAL_TMP') | dirname }}/postgres_id_rsa"
+    dest: "{{ repmgr_private_key_path }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0600
+
+- name: Repmgr | Setup SSH config for Barman
+  ansible.builtin.template:
+    src: repmgr_barman_ssh_config.j2
+    dest: "{{ repmgr_base_key_path }}/config"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0600
+  when: repmgr_barman_host and repmgr_barman_server
+
+- name: Determine repmgr primary hostname
+  ansible.builtin.set_fact:
+    repmgr_primary_hostname: "{% for host, vars in hostvars.items() if 'repmgr_primary' in vars and vars['repmgr_primary'] %}{{ host|trim }}{% endfor %}"
+  when: repmgr_primary_hostname is not defined
+
+- name: Debug repmgr primary hostname
+  ansible.builtin.debug:
+    msg:
+      "repmgr_primary_hostname": "{{ repmgr_primary_hostname == ansible_hostname }}"
+
+- name: Repmgr | Register as primary
+  ansible.builtin.command: "repmgr primary register -F"
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_hostname == repmgr_primary_hostname
+
+- name: Repmgr | Ensure postgresql slave is stopped before clone
+  ansible.builtin.shell: 
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} stop
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_hostname != repmgr_primary_hostname
+
+- name: Repmgr | Clone standby
+  ansible.builtin.command: "repmgr -F -h {{ repmgr_primary_hostname }} -U repmgr -d repmgr standby clone"
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_hostname != repmgr_primary_hostname
+
+- name: Repmgr | Ensure postgresql slave is running after clone
+  ansible.builtin.shell: 
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} start
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_hostname != repmgr_primary_hostname
+
+- name: Repmgr | Wait for Postgres
+  ansible.builtin.wait_for:
+    port: "{{ postgresql_port }}"
+    timeout: 3
+
+- name: Repmgr | Register standby
+  ansible.builtin.command: "repmgr -F -h {{ repmgr_primary_hostname }} -U repmgr -d repmgr standby register"
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_hostname != repmgr_primary_hostname
+
+- name: Repmgr | Verify cluster functionality
+  ansible.builtin.command: "repmgr -F -h {{ repmgr_primary_hostname }} -U repmgr -d repmgr cluster crosscheck"
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+
+- name: Repmgr | Ensure repmgrd is running
+  ansible.builtin.command: "/usr/bin/repmgrd daemon start"
+  when: repmgr_monitoring_history or repmgr_failover == 'automatic'
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+
+- name: Repmgr | Show repmgrd status
+  ansible.builtin.command: "repmgr daemon status"
+  register: repmgrd_status
+  when: repmgr_monitoring_history or repmgr_failover == 'automatic'
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+
+- name: Debug repmgrd status
+  ansible.builtin.debug:
+    msg:
+      "{{ repmgrd_status.stdout_lines }}"
+
+- name: Repmgr | Setup cluster monitoring history cleanup with cron task
+  ansible.builtin.cron:
+    name: Purges repmgr.monitoring_history table
+    job: "repmgr cluster cleanup --keep-history={{ repmgr_keep_history_days }}"
+    special_time: daily
+  when: repmgr_monitoring_history and repmgr_failover == 'automatic'

@@ -1,0 +1,71 @@
+---
+# The standard ca-certs are needed because  without them apt_key will fail to
+# validate www.postgresql.org (or probably any other source).
+
+- name: PostgreSQL | Make sure the CA certificates are available | apt
+  ansible.builtin.apt:
+    pkg: ['ca-certificates', 'gnupg']
+    state: present
+
+- name: PostgreSQL | Add PostgreSQL repository apt-key | apt
+  ansible.builtin.apt_key:
+    id: "{{ postgresql_apt_key_id }}"
+    url: "{{ postgresql_apt_key_url }}"
+    state: present
+  when: postgresql_apt_key_url and postgresql_apt_key_id and postgresql_install_repository
+
+- name: PostgreSQL | Add PostgreSQL repository | apt
+  ansible.builtin.apt_repository:
+    repo: "{{ postgresql_apt_repository }}"
+    state: present
+  when: postgresql_apt_repository | default('') != '' and postgresql_install_repository
+
+- name: PostgreSQL | Add PostgreSQL repository preferences | apt
+  ansible.builtin.template:
+    src: etc_apt_preferences.d_apt_postgresql_org_pub_repos_apt.pref.j2
+    dest: /etc/apt/preferences.d/apt_postgresql_org_pub_repos_apt.pref
+    mode: 0640
+  when: postgresql_apt_pin_priority and postgresql_install_repository
+
+- name: PostgreSQL | Make sure the dependencies are installed | apt
+  ansible.builtin.apt:
+    pkg: "{{ postgresql_apt_dependencies }}"
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ apt_cache_valid_time | default(3600) }}"
+
+- name: PostgreSQL | Install PostgreSQL | apt
+  ansible.builtin.apt:
+    name:
+      - "postgresql-{{ postgresql_version }}"
+      - "postgresql-client-{{ postgresql_version }}"
+      # - "postgresql-contrib-{{ postgresql_version }}"
+      - "postgresql-contrib"
+    state: present
+    update_cache: true
+    # default_release: "{{ postgresql_default_release | default(ansible_distribution_release + '-pgdg') }}"
+    cache_valid_time: "{{ apt_cache_valid_time | default(3600) }}"
+  register: postgresql_install
+  environment: "{{ postgresql_env }}"
+
+- name: PostgreSQL | Shutdown systemd-based instance upon first installation
+  ansible.builtin.service:
+    name: "postgresql@{{ postgresql_version }}-{{ postgresql_cluster_name }}"
+    state: stopped
+    enabled: false
+  when: postgresql_install.changed
+
+- name: PostgreSQL | Ensure systemd unit is disabled
+  ansible.builtin.shell:
+    cmd: |
+      systemctl disable postgresql
+    executable: /bin/bash
+    warn: false
+
+- name: PostgreSQL | Start postgresql using pg_ctlcluster binary
+  ansible.builtin.shell:
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} restart
+    executable: /bin/bash
+  become: true
+  become_user: "{{ postgresql_service_user }}"
+  when: postgresql_install.changed

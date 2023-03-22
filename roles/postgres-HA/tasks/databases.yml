@@ -1,0 +1,93 @@
+---
+- name: PostgreSQL | Ensure PostgreSQL is running
+  ansible.builtin.shell: 
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} status
+    executable: /bin/bash
+  become_user: "{{ postgresql_service_user }}"
+
+- name: PostgreSQL | Make sure the PostgreSQL databases are present
+  community.postgresql.postgresql_db:
+    name: "{{ item.name }}"
+    owner: "{{ item.owner | default(postgresql_database_owner) }}"
+    encoding: "{{ item.encoding | default(postgresql_encoding) }}"
+    lc_collate: "{{ item.lc_collate | default(postgresql_locale) }}"
+    lc_ctype: "{{ item.lc_ctype | default(postgresql_ctype) }}"
+    port: "{{ postgresql_port }}"
+    template: "template0"
+    state: present
+    login_user: "{{ postgresql_admin_user }}"
+  become: yes
+  become_user: "{{ postgresql_admin_user }}"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  when: postgresql_databases|length > 0 and repmgr_primary
+
+- name: PostgreSQL | Add extensions to the databases
+  become: yes
+  become_user: "{{ postgresql_admin_user }}"
+  community.postgresql.postgresql_ext:
+    db: "{{ item.0.db }}"
+    login_user: "{{ postgresql_service_user }}"
+    port: "{{ postgresql_port }}"
+    name: "{{ item.1 }}"
+  with_subelements:
+    - "{{ postgresql_database_extensions }}"
+    - extensions
+  register: result
+
+- name: PostgreSQL | Add hstore to the databases with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'CREATE EXTENSION IF NOT EXISTS hstore;'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  register: hstore_ext_result
+  failed_when: hstore_ext_result.rc != 0 and ("already exists, skipping" not in hstore_ext_result.stderr)
+  changed_when: hstore_ext_result.rc == 0 and ("already exists, skipping" not in hstore_ext_result.stderr)
+  when: item.hstore is defined and item.hstore
+
+- name: PostgreSQL | Add uuid-ossp to the database with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  register: uuid_ext_result
+  failed_when: uuid_ext_result.rc != 0 and ("already exists, skipping" not in uuid_ext_result.stderr)
+  changed_when: uuid_ext_result.rc == 0 and ("already exists, skipping" not in uuid_ext_result.stderr)
+  when: item.uuid_ossp is defined and item.uuid_ossp
+
+- name: PostgreSQL | Add postgis to the databases with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'CREATE EXTENSION IF NOT EXISTS postgis;'&&psql {{ item.name }} -c 'CREATE EXTENSION IF NOT EXISTS postgis_topology;'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  when: item.gis is defined and item.gis
+
+- name: PostgreSQL | add cube to the database with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'create extension if not exists cube;'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  when: item.cube is defined and item.cube
+
+- name: PostgreSQL | Add plpgsql to the database with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'CREATE EXTENSION IF NOT EXISTS plpgsql;'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  when: item.plpgsql is defined and item.plpgsql
+
+- name: PostgreSQL | add earthdistance to the database with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'create extension if not exists earthdistance;'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  when: item.earthdistance is defined and item.earthdistance
+
+- name: PostgreSQL | Add citext to the database with the requirement
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ansible.builtin.shell: "{{ postgresql_bin_directory }}/psql {{ item.name }} --port={{ postgresql_port | int }} --username {{ postgresql_admin_user }} -c 'CREATE EXTENSION IF NOT EXISTS citext;'"
+  loop: "{{ postgresql_databases | flatten(levels=1) }}"
+  register: citext_ext_result
+  failed_when: citext_ext_result.rc != 0 and ("already exists, skipping" not in citext_ext_result.stderr)
+  changed_when: citext_ext_result.rc == 0 and ("already exists, skipping" not in citext_ext_result.stderr)
+  when: item.citext is defined and item.citext

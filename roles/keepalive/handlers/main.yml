@@ -1,0 +1,9 @@
+---
+# handlers file for keepalive
+
+- name: restart keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: restarted
+    daemon_reload: true
+    enabled: true

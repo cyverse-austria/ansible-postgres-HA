@@ -1,0 +1,46 @@
+global_defs {
+#   router_id pihole-dns-02
+  script_user {{ postgresql_admin_user | default('postgres') }}
+  enable_script_security
+}
+
+vrrp_script check_repmgr {
+  script "/etc/keepalived/check_master.sh"
+{#   script "/usr/bin/sudo -u {{ postgresql_admin_user | default('postgres') }} /etc/keepalived/check_master.sh" #}
+{#   script "sudo -u {{ postgresql_admin_user | default('postgres') }} repmgr node check --role 2> /dev/null grep primary" #}
+  interval 1
+  weight -100
+}
+
+vrrp_instance postgresql {
+{# {% if repmgr_node_id == 1  %} #}
+  state {% if repmgr_node_id == 1  %}MASTER{% else %}BACKUP{% endif +%}
+{# {% else %} #}
+{#   state BACKUP #}
+{# {% endif %} #}
+  interface ens3
+  virtual_router_id 55
+{% if repmgr_node_id == 1 %}
+  priority 250
+{% else %}
+  priority {{ 250 - repmgr_node_id * 10 }}
+{% endif %}
+#  advert_int 1
+#   unicast_src_ip 192.168.1.3
+#   unicast_peer {
+#     192.168.1.2
+#   }
+
+#   authentication {
+#     auth_type PASS
+#     auth_pass secret
+#   }
+
+  virtual_ipaddress {
+    {{ keepalive__virtip | ansible.utils.ipv4('host/prefix')}}
+  }
+
+  track_script {
+    check_repmgr
+  }
+}

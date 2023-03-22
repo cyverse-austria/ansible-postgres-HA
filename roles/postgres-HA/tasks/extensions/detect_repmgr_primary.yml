@@ -1,0 +1,35 @@
+---
+- name: Repmgr | Get hosts from targeted group
+  ansible.builtin.set_fact:
+    repmgr_target_group_hosts: "{{ groups[repmgr_target_group] }}"
+
+- name: Repmgr | Detect primary
+  ansible.builtin.shell: "repmgr -f {{ postgresql_conf_directory }}/repmgr.conf cluster show | grep primary | cut -d '|' -f 2"
+  register: repmgr_primary_check
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  ignore_errors: yes
+
+- name: Repmgr | Debug check
+  ansible.builtin.debug:
+    msg:
+      "repmgr_primary_hostname": "{{ repmgr_primary_check.stdout | trim }}"
+      "repmgr_is_primary": "{{ ansible_hostname == repmgr_primary_check.stdout | trim }}"
+    verbosity: 1
+
+- name: Repmgr | Declare as primary for existing installation
+  ansible.builtin.set_fact:
+    repmgr_primary: "{{ ansible_hostname == repmgr_primary_check.stdout | trim }}"
+  when: repmgr_primary_check.stdout is defined and repmgr_primary_check.rc == 0
+
+- name: Repmgr | Declare as primary for new installation
+  ansible.builtin.set_fact:
+    repmgr_primary: "{{ ansible_hostname == repmgr_master }}"
+  when: repmgr_primary_check.stdout == ""
+
+- name: Repmgr | Ensure repmgr_master host exists
+  ansible.builtin.fail:
+    msg: "{{ repmgr_master }} was not found in {{ repmgr_target_group }}"
+  when: 
+    - repmgr_primary_check.stdout == "" and
+      repmgr_master is not in repmgr_target_group_hosts

@@ -1,0 +1,153 @@
+---
+- name: PostgreSQL | Make sure the postgres data directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_data_directory }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    state: directory
+    mode: 0700
+  register: pgdata_dir_exist
+
+- name: PostgreSQL | Make sure the postgres WAL directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_wal_directory }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    state: directory
+    mode: 0700
+  register: pgwal_dir_exist
+  when: postgresql_wal_directory != ""
+
+- name: PostgreSQL | Make sure the postgres log directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_log_directory }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    state: directory
+    mode: 0700
+  register: pglog_dir_exist
+  when: postgresql_log_directory != "pg_log"
+
+- name: PostgreSQL | Ensure the locale for lc_collate and lc_ctype is generated | Debian
+  become: yes
+  community.general.system.locale_gen: 
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - "{{ postgresql_locale }}"
+    - "{{ postgresql_ctype }}"
+  when: ansible_os_family == "Debian" and item != "C.UTF-8"
+
+- name: PostgreSQL | Stop PostgreSQL | Debian
+  ansible.builtin.shell: 
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} stop
+    executable: /bin/bash
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_os_family == "Debian" and postgresql_cluster_reset and pgdata_dir_exist.changed
+
+- name: PostgreSQL | Reset the cluster - drop the existing one | Debian
+  ansible.builtin.shell: pg_dropcluster {{ postgresql_version }} {{ postgresql_cluster_name }}
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_os_family == "Debian" and postgresql_cluster_reset and pgdata_dir_exist.changed
+
+- name: PostgreSQL | Reset the cluster - create a new one (with specified encoding and locale) | Debian
+  ansible.builtin.shell: >
+    pg_createcluster --locale {{ postgresql_locale }}
+    -e {{ postgresql_encoding }} -d {{ postgresql_data_directory }}
+    {{ postgresql_version }} {{ postgresql_cluster_name }}
+    --
+    {% if postgresql_data_checksums and postgresql_version is version_compare('9.3', '>=') %}--data-checksums{% endif %}
+    {% if postgresql_pwfile != "" %}--pwfile={{ postgresql_pwfile }} {% endif %}
+    {% if postgresql_wal_directory != "" and postgresql_version is version_compare('10', '<') %}--xlogdir={{ postgresql_wal_directory }} {% endif %}
+    {% if postgresql_wal_directory != "" and postgresql_version is version_compare('10', '>=') %}--waldir={{ postgresql_wal_directory }} {% endif %}
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_os_family == "Debian" and postgresql_cluster_reset and pgdata_dir_exist.changed
+
+- name: PostgreSQL | Start PostgreSQL | Debian
+  ansible.builtin.shell: 
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} start
+    executable: /bin/bash
+  become_user: "{{ postgresql_service_user }}"
+  when: ansible_os_family == "Debian" and postgresql_cluster_reset and pgdata_dir_exist.changed
+
+- name: PostgreSQL | Verify postgresql cluster version
+  ansible.builtin.command: grep ^{{ postgresql_version }}$ {{ postgresql_data_directory }}/PG_VERSION
+  changed_when: false
+
+- name: PostgreSQL | Ensure configuration directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_conf_directory }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0700
+    state: directory
+
+- name: PostgreSQL | Update configuration - pt. 1 (pg_hba.conf) # TODO : consider refactoring using postgresql_pg_hba module instead
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: "{{ postgresql_conf_directory }}/pg_hba.conf"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0640
+  register: postgresql_configuration_pt1
+
+- name: PostgreSQL | Update configuration - pt. 2 (postgresql.conf)
+  ansible.builtin.template:
+    src: "postgresql.conf-{{ postgresql_version }}.j2"
+    dest: "{{ postgresql_conf_directory }}/postgresql.conf"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0640
+  register: postgresql_configuration_pt2
+  changed_when: true
+
+- name: PostgreSQL | Update configuration - pt. 3 (pg_ident.conf)
+  ansible.builtin.template:
+    src: pg_ident.conf.j2
+    dest: "{{ postgresql_ident_file }}"
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0640
+  register: postgresql_configuration_pt4
+  notify: Restart postgresql
+
+- name: PostgreSQL | Create folder for additional configuration files
+  ansible.builtin.file:
+    name: "{{ postgresql_conf_directory }}/conf.d"
+    state: directory
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: 0755
+
+- name: PostgreSQL | Ensure the pid directory for PostgreSQL exists
+  ansible.builtin.file:
+    name: "{{ postgresql_pid_directory }}"
+    state: directory
+    owner: "{{ postgresql_service_user }}"
+    group: "{{ postgresql_service_group }}"
+    mode: u=rwX,g=rwXs,o=rx
+  notify: Restart postgresql
+
+- name: PostgreSQL | Reload all conf files
+  ansible.builtin.shell: 
+    cmd: |
+      pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} start
+      pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} reload
+    executable: /bin/bash
+  become_user: "{{ postgresql_service_user }}"
+  when: postgresql_configuration_pt1.changed or postgresql_configuration_pt2.changed or postgresql_configuration_pt3.changed or postgresql_systemd_custom_conf.changed
+
+- name: PostgreSQL | Restart service
+  ansible.builtin.shell:
+    # cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} restart
+    cmd: |
+      pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} stop
+      /usr/bin/systemctl start postgresql@{{ postgresql_version }}-{{ postgresql_cluster_name }}.service
+      # pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} restart
+    executable: /bin/bash
+  # become_user: "{{ postgresql_service_user }}"
+  when: postgresql_configuration_pt2.changed
+  register: postgresql_restart
+  failed_when: postgresql_restart.rc not in [0, 2] # handle already-running return codes

@@ -1,0 +1,50 @@
+---
+# tasks file for pgbouncer
+
+- name: Install pgbouncer
+  ansible.builtin.apt:
+    name: pgbouncer
+    state: present
+    update_cache: true
+
+- name: usernames
+  ansible.builtin.shell:
+    set -o pipefail && \
+    psql -Atq -U "{{ postgres_admin_user }}" -d postgres -c \
+      "SELECT concat('\"', usename, '\" \"', passwd, '\"') FROM pg_shadow" \
+    | grep 'md5'
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ postgres_admin_user }}"
+  register: user_list
+  changed_when: false
+  check_mode: false
+  run_once: true
+
+- name: set usernames
+  ansible.builtin.set_fact:
+    userlist: "{{ user_list.stdout_lines }}"
+  check_mode: false
+  run_once: true
+  when: user_list is defined
+
+- name: Copy pgbouncer configuration file
+  ansible.builtin.template:
+    src: etc/pgbouncer/pgbouncer.ini.j2
+    dest: /etc/pgbouncer/pgbouncer.ini
+    owner: "{{ postgresql_admin_user | default('postgres') }}"
+    group: "{{ postgresql_admin_user | default('postgres') }}"
+    mode: 0640
+  notify:
+    - restart pgbouncer
+
+- name: Copy userlist file
+  ansible.builtin.template:
+    src: etc/pgbouncer/userlist.txt.j2
+    dest: /etc/pgbouncer/userlist.txt
+    owner: "{{ postgresql_admin_user | default('postgres') }}"
+    group: "{{ postgresql_admin_user | default('postgres') }}"
+    mode: 0640
+  notify:
+    - restart pgbouncer

@@ -1,0 +1,12 @@
+---
+- name: PostgreSQL | FDW | MySQL
+  ansible.builtin.package:
+    name: "{{ postgresql_fdw_mysql_packages }}"
+    state: present
+  when: postgresql_fdw_mysql
+
+- name: PostgreSQL | FDW | OGR
+  ansible.builtin.package:
+    name: "{{ postgresql_fdw_ogr_packages }}"
+    state: present
+  when: postgresql_fdw_ogr

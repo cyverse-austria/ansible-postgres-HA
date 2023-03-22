@@ -1,0 +1,11 @@
+---
+
+- hosts: all
+  remote_user: ansible
+  become: true
+  roles:
+    - role: postgres-HA
+      postgresql_version: 12
+    - role: keepalive
+      keepalive_virtIP: 192.168.243.42
+    - role: pgbouncer

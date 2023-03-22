@@ -1,0 +1,21 @@
+---
+- name: PostgreSQL | Ensure PostgreSQL is running
+  ansible.builtin.shell: 
+    cmd: pg_ctlcluster {{ postgresql_version }} {{ postgresql_cluster_name }} status
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ postgresql_service_user }}"
+
+- name: PostgreSQL | Make sure the PostgreSQL users are present
+  community.postgresql.postgresql_user:
+    name: "{{ item.name }}"
+    password: "{{ item.pass | default(omit) }}"
+    encrypted: "{{ item.encrypted | default(omit) }}"
+    port: "{{ postgresql_port }}"
+    state: present
+    login_user: "{{ postgresql_admin_user }}"
+  # no_log: true
+  become: yes
+  become_user: "{{ postgresql_admin_user }}"
+  with_items: "{{ postgresql_users }}"
+  when: postgresql_users|length > 0 and repmgr_primary
