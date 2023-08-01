@@ -6,22 +6,22 @@ all:
     repmgr_version: 5.2
     repmgr_master: pg-master
 pgcluster:
-  hosts:
-    pg-master:
-      # example IP
-      ansible_host: 192.168.243.19
-      repmgr_node_id: 1
-      repmgr_priority: 3
-    postgres-01:
-      # example IP
-      ansible_host: 192.168.243.157
-      repmgr_node_id: 2
-      repmgr_priority: 2
-    postgres-02:
-      # example IP
-      ansible_host: 192.168.243.209
-      repmgr_node_id: 3
-      repmgr_priority: 1
+  # hosts:
+  #   pg-master:
+  #     # example IP
+  #     ansible_host: 192.168.243.117
+  #     repmgr_node_id: 1
+  #     repmgr_priority: 3
+  #   postgres-01:
+  #     # example IP
+  #     ansible_host: 192.168.243.47
+  #     repmgr_node_id: 2
+  #     repmgr_priority: 2
+  #   postgres-02:
+  #     # example IP
+  #     ansible_host: 192.168.243.13
+  #     repmgr_node_id: 3
+  #     repmgr_priority: 1
   vars:
     # keepalive_virtIP: 192.168.243.243
     # Required configuration items
@@ -80,6 +80,8 @@ pgcluster:
       - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "192.168.243.0/24", method: "trust" }
       - { type: "host", database: "all", user: "postgres", address: "192.168.243.0/24", method: "trust" }
       - { type: "host", database: "testdb", user: "all", address: "192.168.243.0/24", method: "md5" }
+      # NOTE: Add Database/User  1/5
+      # - { type: "host", database: "exampledb", user: "all", address: "192.168.243.0/24", method: "md5" }
 
     # Databases
     postgresql_databases:
@@ -89,6 +91,10 @@ pgcluster:
       - name: testdb
         owner: admin
         encoding: "UTF-8"
+      # NOTE: Add Database/User  2/5
+      # - name: exampledb
+      #   owner: exampleuser
+      #   encoding: "UTF-8"
     # Users
     postgresql_users:
       - name: "{{ repmgr_user }}"
@@ -96,6 +102,10 @@ pgcluster:
       - name: admin
         pass: secret # postgresql >=10 does not accept unencrypted passwords
         encrypted: yes
+      # NOTE: Add Database/User  3/5
+      # - name: exampleuser
+      #   pass: secret # postgresql >=10 does not accept unencrypted passwords
+      #   encrypted: yes
     # Roles
     postgresql_user_privileges:
       - name: "{{ repmgr_user }}"
@@ -105,6 +115,25 @@ pgcluster:
       - name: admin
         db: testdb
         role_attr_flags: "SUPERUSER"
+      # NOTE: Add Database/User  4/5
+      # - name: exampleuser
+      #   db: exampledb
+      #   role_attr_flags: "SUPERUSER"
+    # prgbouncer
+    pgbouncer_pools:
+      - name: "repmgr"
+        dbname: "repmgr"
+        host: "localhost"
+        port: "5432"
+      - name: "testdb"
+        dbname: "testdb"
+        host: "localhost"
+        port: "5432"
+      # NOTE: Add Database/User  5/5
+      # - name: "exampledb"
+      #   dbname: "exampledb"
+      #   host: "localhost"
+      #   port: "5432"
     # required for repmgr node rejoin --force-rewind
     postgresql_data_checksums: true
     postgresql_wal_compression: on

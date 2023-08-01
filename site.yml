@@ -1,6 +1,7 @@
 ---
 
-- hosts: all
+- name: Install HA-postgresql
+  hosts: all
   remote_user: ansible
   become: true
   roles:

@@ -56,11 +56,9 @@
   when: postgresql_install.changed
 
 - name: PostgreSQL | Ensure systemd unit is disabled
-  ansible.builtin.shell:
-    cmd: |
-      systemctl disable postgresql
-    executable: /bin/bash
-    warn: false
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: false
 
 - name: PostgreSQL | Start postgresql using pg_ctlcluster binary
   ansible.builtin.shell:
