@@ -2,8 +2,6 @@
 
 - name: Install HA-postgresql
   hosts: all
-  remote_user: ansible
-  become: true
   roles:
     - role: postgres-HA
       postgresql_version: 12
