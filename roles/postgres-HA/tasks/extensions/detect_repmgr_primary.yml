@@ -27,10 +27,6 @@
     repmgr_primary: "{{ ansible_hostname == repmgr_master }}"
   when: repmgr_primary_check.stdout == ""
 
-- name: DEBUG
-  ansible.builtin.debug:
-    var: repmgr_target_group_hosts
-
 - name: Repmgr | Ensure repmgr_master host exists
   ansible.builtin.fail:
     msg: "{{ repmgr_master }} was not found in {{ repmgr_target_group }}"

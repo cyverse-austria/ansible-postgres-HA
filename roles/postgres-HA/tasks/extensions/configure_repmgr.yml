@@ -109,6 +109,8 @@
 - name: Debug repmgr primary hostname
   ansible.builtin.debug:
     msg:
+      "ansible_hostname": "{{ ansible_hostname }}"
+      "repmgr_primary_hostname1": "{{ repmgr_primary_hostname }}"
       "repmgr_primary_hostname": "{{ repmgr_primary_hostname == ansible_hostname }}"
 
 - name: Repmgr | Register as primary
