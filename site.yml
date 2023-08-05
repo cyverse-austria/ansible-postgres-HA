@@ -3,6 +3,7 @@
 - name: Install HA-postgresql
   hosts: all
   roles:
+    - role: hosts-file
     - role: postgres-HA
       postgresql_version: 11
     - role: keepalive
