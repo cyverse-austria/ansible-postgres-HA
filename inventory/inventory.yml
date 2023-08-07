@@ -75,20 +75,12 @@ pgcluster:
     postgresql_log_temp_files: 0
     # pg_hba.conf
     postgresql_pg_hba_custom:
-      - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "174.138.9.153/32", method: "trust" }
-      - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "178.128.240.168/32", method: "trust" }
-      - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "174.138.12.120/32", method: "trust" }
+      - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "192.168.243.0/24", method: "trust" }
       - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "127.0.0.1/32", method: "trust" }
-      - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "174.138.9.153/32", method: "trust" }
-      - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "178.128.240.168/32", method: "trust" }
-      - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "174.138.12.120/32", method: "trust" }
       - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "127.0.0.1/32", method: "trust" }
-      - { type: "host", database: "all", user: "postgres", address: "174.138.9.153/32", method: "trust" }
-      - { type: "host", database: "all", user: "postgres", address: "178.128.240.168/32", method: "trust" }
-      - { type: "host", database: "all", user: "postgres", address: "174.138.12.120/32", method: "trust" }
-      - { type: "host", database: "testdb", user: "all", address: "174.138.9.153/32", method: "md5" }
-      - { type: "host", database: "testdb", user: "all", address: "178.128.240.168/32", method: "md5" }
-      - { type: "host", database: "testdb", user: "all", address: "174.138.12.120/32", method: "md5" }
+      - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "192.168.243.0/24", method: "trust" }
+      - { type: "host", database: "all", user: "postgres", address: "192.168.243.0/24", method: "trust" }
+      - { type: "host", database: "testdb", user: "all", address: "192.168.243.0/24", method: "md5" }
       # NOTE: Add Database/User  1/5
       # - { type: "host", database: "exampledb", user: "all", address: "192.168.243.0/24", method: "md5" }
 
