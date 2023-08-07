@@ -120,11 +120,11 @@ In order to exactly figure out the purpose and valid values for each of these va
         postgresql_log_temp_files: 0
         # pg_hba.conf
         postgresql_pg_hba_custom:
-          - { type: "host", database: "all", user: "all", address: "192.168.56.0/24", method: "md5" }
-          - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "192.168.56.0/24", method: "trust" }  
-          - { type: "host", database: "replication", user: "{{ repmgr_user }}", address: "127.0.0.1/32", method: "trust" }  
-          - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "127.0.0.1/32", method: "trust" }  
-          - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", address: "192.168.56.0/32", method: "trust" }  
+          - { type: "host", database: "all", user: "all", method: "md5" }
+          - { type: "host", database: "replication", user: "{{ repmgr_user }}", method: "trust" }  
+          - { type: "host", database: "replication", user: "{{ repmgr_user }}", method: "trust" }  
+          - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", method: "trust" }  
+          - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", method: "trust" }  
         # Databases
         postgresql_databases:
           - name: "{{ repmgr_database }}"
