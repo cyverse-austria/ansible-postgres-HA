@@ -47,6 +47,6 @@ host  all  all  {{host}}  trust
 {% endif %}
 # {{connection.type}}  {{connection.database}}  {{connection.user}}  {{connection.address}}  {{connection.method}}
 {% for host in groups['all'] %}
-{{connection.type}}  {{connection.database}}  {{connection.user}}  {{hostvars[host]['ansible_default_ipv4']['address']}}  {{connection.method}}
+{{connection.type}}  {{connection.database}}  {{connection.user}}  {{hostvars[host]['ansible_default_ipv4']['address']}}/32  {{connection.method}}
 {% endfor %}
 {% endfor %}
