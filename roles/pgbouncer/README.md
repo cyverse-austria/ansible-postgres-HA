@@ -1,14 +1,3 @@
-
-Role Name
-=========
-
-A brief description of the role goes here. TODO
-
-Requirements
-------------
-
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
-
 Role Variables
 --------------
 
@@ -39,13 +28,3 @@ Including an example of how to use your role (for instance, with variables passe
       roles:
         - role: ansible-pgbouncer
           pgbouncer_listen_port: 4321
-
-License
--------
-
-BSD
-
-Author Information
-------------------
-
-TODO
