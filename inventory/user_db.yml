@@ -1,0 +1,65 @@
+---
+all:
+pgcluster:
+  vars:
+    postgresql_pg_hba_custom:
+      - { type: "host", database: "replication", user: "{{ repmgr_user }}", method: "trust" }
+      - { type: "host", database: "replication", user: "{{ repmgr_user }}", method: "trust" }
+      - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", method: "trust" }
+      - { type: "host", database: "{{ repmgr_database }}", user: "{{ repmgr_user }}", method: "trust" }
+      - { type: "host", database: "all", user: "postgres", method: "trust" }
+      # NOTE: Add Database/User  1/5
+      - { type: "host", database: "testdb", user: "all", method: "md5" }
+      # - { type: "host", database: "exampledb", user: "all", method: "md5" }
+
+    # Databases
+    postgresql_databases:
+      - name: "{{ repmgr_database }}"
+        owner: "{{ repmgr_user }}"
+        encoding: "UTF-8"
+      # NOTE: Add Database/User  2/5
+      - name: testdb
+        owner: admin
+        encoding: "UTF-8"
+      # - name: exampledb
+      #   owner: exampleuser
+      #   encoding: "UTF-8"
+    # Users
+    postgresql_users:
+      - name: "{{ repmgr_user }}"
+        pass: "{{ repmgr_password }}"
+      # NOTE: Add Database/User  3/5
+      - name: admin
+        pass: secret # postgresql >=10 does not accept unencrypted passwords
+        encrypted: yes
+      # - name: exampleuser
+      #   pass: secret # postgresql >=10 does not accept unencrypted passwords
+      #   encrypted: yes
+    # Roles
+    postgresql_user_privileges:
+      - name: "{{ repmgr_user }}"
+        db: "{{ repmgr_database }}"
+        priv: "ALL"
+        role_attr_flags: "SUPERUSER,REPLICATION"
+      # NOTE: Add Database/User  4/5
+      - name: admin
+        db: testdb
+        role_attr_flags: "SUPERUSER"
+      # - name: exampleuser
+      #   db: exampledb
+      #   role_attr_flags: "SUPERUSER"
+    # prgbouncer
+    pgbouncer_pools:
+      - name: "repmgr"
+        dbname: "repmgr"
+        host: "localhost"
+        port: "5432"
+      # NOTE: Add Database/User  5/5
+      - name: "testdb"
+        dbname: "testdb"
+        host: "localhost"
+        port: "5432"
+      # - name: "exampledb"
+      #   dbname: "exampledb"
+      #   host: "localhost"
+      #   port: "5432"
