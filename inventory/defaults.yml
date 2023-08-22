@@ -5,7 +5,7 @@ all:
     postgresql_version: 12
     repmgr_version: 5.2
     # repmgr_master: deb-qa-pg-master
-    repmgr_master: pg-x-master
+    # repmgr_master: pg-x-master
 pgcluster:
   vars:
     # keepalive_virtIP: 192.168.243.243
