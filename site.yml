@@ -5,7 +5,7 @@
   roles:
     - role: hosts-file
     - role: postgres-HA
-      postgresql_version: 11
+      postgresql_version: 12
     - role: keepalive
       keepalive_virtIP: 192.168.243.42
     - role: pgbouncer
