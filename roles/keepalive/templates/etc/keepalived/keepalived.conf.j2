@@ -18,7 +18,7 @@ vrrp_instance postgresql {
 {# {% else %} #}
 {#   state BACKUP #}
 {# {% endif %} #}
-  interface ens3
+  interface {{ ansible_default_ipv4.interface }}
   virtual_router_id 55
 {% if repmgr_node_id == 1 %}
   priority 250
