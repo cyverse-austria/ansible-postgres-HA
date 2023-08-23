@@ -18,13 +18,14 @@
     name:
       - python3-pip
       - libpq-dev
+      - python3-psycopg2
   when: repmgr_node_id == 1
 
-- name: install python module
-  ansible.builtin.pip:
-    name:
-      - psycopg2
-  when: repmgr_node_id == 1
+# - name: install python module
+#   ansible.builtin.pip:
+#     name:
+#       - psycopg2
+#   when: repmgr_node_id == 1
 # maf
 #
 # Override defaults/main.yml with PostgreSQL version specific values
