@@ -19,6 +19,7 @@
       - python3-pip
       - libpq-dev
       - python3-psycopg2
+      - cron
   when: repmgr_node_id == 1
 
 # - name: install python module
